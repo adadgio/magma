@@ -62,13 +62,48 @@ class DeployCommand extends Command
         }
 
         // prepare remote project folders
-        $this->prepareReleaseDirectories($input, $output, $env, $release);
+        //$this->prepareReleaseDirectories($input, $output, $env, $release);
 
         // rsync to remote directory (latest releasr)
-        $this->rsyncToRemote($input, $output, $env, $release);
+        //$this->rsyncToRemote($input, $output, $env, $release);
 
+        // execute post deploy tasks
+        $this->postDeploy($input, $output, $env, $release);
+        
         // deploy with symlink to latest release
-        $this->deployWithSymlink($input, $output, $env, $release);
+        //$this->deployWithSymlink($input, $output, $env, $release);
+    }
+
+    /**
+     * [postDeploy description]
+     * @param  [type] $input   [description]
+     * @param  [type] $output  [description]
+     * @param  [type] $env     [description]
+     * @param  [type] $release [description]
+     * @return [type]          [description]
+     */
+    public function postDeploy($input, $output, $env, $release)
+    {
+        $config = new Config();
+        $cmd = CmdBuilder::postDeploy($config, $env, $release);
+
+        // no remote tasks to execute
+        if (false === $cmd) {
+            return true;
+        }
+
+        $process = new Process($cmd);
+        $process->run();
+
+        $output->writeln('<info>$> executing post deploy tasks...</info>');
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            $output->writeln(sprintf('<error></error>', $process->getOutput()));
+            throw new \Exception('could not execute some post deploy tasks');
+        }
+
+        return true;
     }
 
     /**
@@ -201,7 +236,7 @@ class DeployCommand extends Command
 
         $progress->setMessage('finished '."\xF0\x9F\x8D\xBA");
         $progress->finish();
-        
+
         $output->writeln('');
         $output->writeln('<info>$> project successfully deployed.</info>');
 

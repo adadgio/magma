@@ -19,18 +19,7 @@ class Config
     {
         $this->read();
     }
-
-    /**
-     * [test description]
-     * @param  array  $a [description]
-     * @param  [type] $b [description]
-     * @return [type]    [description]
-     */
-    public function test(array $a, $b)
-    {
-
-    }
-
+    
     /**
      * Read and parse the local config file.
      *
@@ -41,14 +30,14 @@ class Config
         $configFile = $this->getCwd().'/'.static::CONFIG_FILENAME;
 
         if (!is_file($configFile)) {
-            throw new \Exception(sprintf('Config file not found at "%s"', $configFile));
+            throw new \Exception(sprintf('Not a Magma project (config file "magma.yml" not found at "%s"', $configFile));
         }
 
         $this->config = Yaml::parse(file_get_contents($configFile));
 
         return $this;
     }
-    
+
     /**
      * Get all config tree.
      *
@@ -96,5 +85,16 @@ class Config
         $words = explode('.', $dotsNotation);
 
         return implode('', array_map(function ($w) { return sprintf('[%s]', $w); }, $words));
+    }
+
+    /**
+     * Checks the config array for validity.
+     *
+     * @return [boolean] True or false
+     * @todo Check important stuff are here
+     */
+    private function isValid()
+    {
+        return true;
     }
 }

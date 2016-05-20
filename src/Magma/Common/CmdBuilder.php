@@ -46,14 +46,16 @@ class CmdBuilder
     {
         $user = $config->getParameter(sprintf('project.environments.%s.remote.user', $env));
         $host = $config->getParameter(sprintf('project.environments.%s.remote.host', $env));
-        $latestReleasePath = rtrim($config->getParameter(sprintf('project.environments.%s.remote.path', $env)), '/').'/releases/'.$release;
-        $targetDirectory = $config->getParameter(sprintf('project.environments.%s.remote.path', $env));
+        $path = rtrim($config->getParameter(sprintf('project.environments.%s.remote.path', $env)), '/');
+
+        $latestReleasePath = $path.'/releases/'.$release;
+        $symlinkPath = $path.'/current';
 
         // create symlink from current to latest release
-        $lnsf = vsprintf('cd %s && ln -s %s current', array($targetDirectory, $latestReleasePath));
+        $lnsf = vsprintf('cd %s && find -type l -delete && ln -s %s %s', array($path, $latestReleasePath, $symlinkPath));
 
         $cmd = vsprintf('ssh -t %s@%s "%s"', array($user, $host, $lnsf));
-        
+
         return $cmd;
     }
 
@@ -72,11 +74,37 @@ class CmdBuilder
             $path.'/releases/'.$release,
         );
 
-        $mkdirDirs = implode(' ', $pathes);
-        $mkdir = vsprintf('mkdir -p %s', array($mkdirDirs));
+        $dirs = implode(' ', $pathes);
+        $bash = vsprintf('mkdir -p %s', array($dirs));
 
-        $cmd = vsprintf('ssh -t %s@%s "%s"', array($user, $host, $mkdir));
+        $cmd = vsprintf('ssh -t %s@%s "%s"', array($user, $host, $bash));
 
+        return $cmd;
+    }
+
+    /**
+     * Builds the rsync command from config arguments.
+     *
+     * @param [object] \Config
+     * @return [string] Rsync command to be executed
+     */
+    public static function postDeploy(Config $config, $env, $release)
+    {
+        $user = $config->getParameter(sprintf('project.environments.%s.remote.user', $env));
+        $host = $config->getParameter(sprintf('project.environments.%s.remote.host', $env));
+        $path = $config->getParameter(sprintf('project.environments.%s.remote.path', $env));
+        $tasks = $config->getParameter(sprintf('project.environments.%s.remote.post_deploy', $env));
+        $releasePath = $path.'/releases/'.$release;
+
+        if (empty($tasks)) {
+            return false;
+        }
+
+        // cd into latest release
+        $taskCd = sprintf('cd %s', $releasePath);
+        $bash = $taskCd.' && '.implode(' && ', $tasks);
+        
+        $cmd = vsprintf('ssh -t %s@%s "%s"', array($user, $host, $bash));
         return $cmd;
     }
 }
