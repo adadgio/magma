@@ -51,7 +51,7 @@ class DeployCommand extends Command
         $process = new Process($cmd);
         $progress = new ProgressBar($output);
         //$process->disableOutput();
-
+        
         $clocks = array(
             "\xF0\x9F\x95\x92",
             "\xF0\x9F\x95\x93",
@@ -65,7 +65,7 @@ class DeployCommand extends Command
         $progress->setFormat(' %current%/%max% [%bar%] %message%');
         $progress->setMessage($clocks[0].static::SPACE.'starting...');
         $progress->start();
-        
+
         $process->run(function ($type, $buffer) use ($output, $progress, $clocks) {
 
             $randKey = array_rand($clocks);
