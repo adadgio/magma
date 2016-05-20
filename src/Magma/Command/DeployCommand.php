@@ -13,11 +13,17 @@ use Symfony\Component\Console\Helper\ProgressBar;
 
 use Magma\Common\Config;
 use Magma\Common\CmdBuilder;
+use Magma\Common\RsyncOutput;
 
 class DeployCommand extends Command
 {
     const SPACE = "  ";
 
+    /**
+     * Configure command.
+     *
+     * @return [type] [description]
+     */
     protected function configure()
     {
         $this
@@ -33,8 +39,16 @@ class DeployCommand extends Command
         ;
     }
 
+    /**
+     * Execute command.
+     *
+     * @param  InputInterface  $input  [description]
+     * @param  OutputInterface $output [description]
+     * @return [type]                  [description]
+     */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
+        $release = time();
         $config = new Config();
         $helper = $this->getHelper('question');
 
@@ -47,11 +61,87 @@ class DeployCommand extends Command
             throw new \Exception(sprintf('Environment "%s" does not exist', $env));
         }
 
-        $cmd = CmdBuilder::rsync($config, $env);
+        // prepare remote project folders
+        $this->prepareReleaseDirectories($input, $output, $env, $release);
+
+        // rsync to remote directory (latest releasr)
+        $this->rsyncToRemote($input, $output, $env, $release);
+
+        // deploy with symlink to latest release
+        $this->deployWithSymlink($input, $output, $env, $release);
+    }
+
+    /**
+     * Deploy by creating a symlink to latest release.
+     *
+     * @param  [type] $input   [description]
+     * @param  [type] $output  [description]
+     * @param  [type] $env     [description]
+     * @param  [type] $release [description]
+     * @return [type]          [description]
+     */
+    public function deployWithSymlink($input, $output, $env, $release)
+    {
+        $config = new Config();
+        $cmd = CmdBuilder::releaseSymlink($config, $env, $release);
+
+        $process = new Process($cmd);
+        $process->run();
+
+        $output->writeln('<info>$> deploying with symlink to latest release...</info>');
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            throw new \Exception('could not deploy with symlink');
+        }
+
+        return true;
+    }
+
+    /**
+     * Prepares remote directores structure.
+     *
+     * @param  InputInterface  $input   [description]
+     * @param  OutputInterface $output  [description]
+     * @param  [type]          $env     [description]
+     * @param  [type]          $release [description]
+     * @return [type]                   [description]
+     */
+    private function prepareReleaseDirectories(InputInterface $input, OutputInterface $output, $env, $release)
+    {
+        $config = new Config();
+        $cmd = CmdBuilder::remoteDirs($config, $env, $release);
+
+        $process = new Process($cmd);
+        $process->run();
+
+        $output->writeln('<info>$> preparing remote folders...</info>');
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            throw new \Exception('could not prepare remote folders');
+        }
+
+        return true;
+    }
+
+    /**
+     * Rsync all files that have changed to remote.
+     *
+     * @param  [type] $input   [description]
+     * @param  [type] $output  [description]
+     * @param  [type] $env     [description]
+     * @param  [type] $release [description]
+     * @return [type]          [description]
+     */
+    private function rsyncToRemote($input, $output, $env, $release)
+    {
+        $config = new Config();
+        $cmd = CmdBuilder::rsync($config, $env, $release);
+
         $process = new Process($cmd);
         $progress = new ProgressBar($output);
-        //$process->disableOutput();
-        
+
         $clocks = array(
             "\xF0\x9F\x95\x92",
             "\xF0\x9F\x95\x93",
@@ -71,28 +161,30 @@ class DeployCommand extends Command
             $randKey = array_rand($clocks);
             $clock = $clocks[$randKey].static::SPACE;
 
-            if ($this->toConsider($buffer)) {
-                $nbrFiles = $this->toConsider($buffer);
+            if (RsyncOutput::toConsider($buffer)) {
+                $nbrFiles = RsyncOutput::toConsider($buffer);
+
                 $progress->setMessage($clock.sprintf('%s file(s) to consider', $nbrFiles));
                 $progress->advance();
             }
 
-            if ($this->readToCheck($buffer)) {
-                $toCheck = $this->readToCheck($buffer);
-                //print_r($toCheck);
-                // $output->writeln(sprintf(static::SPACE.'<info>$ transfering 1 file, %d files remaining</info>', $toCheck['to_check']));
+            if (RsyncOutput::toCheck($buffer)) {
+                $toCheck = RsyncOutput::toCheck($buffer);
+
                 $progress->setMessage($clock.sprintf('%s file(s) on %d to check, %d total', $toCheck['nth_transfer'], $toCheck['to_check'], $toCheck['total']));
                 $progress->advance();
             }
 
-            if ($this->inTranser($buffer)) {
-                $inTransfer = $this->inTranser($buffer);
+            if (RsyncOutput::inTranser($buffer)) {
+                $inTransfer = RsyncOutput::inTranser($buffer);
+
                 $progress->setMessage($clock.sprintf('<info>transfering</info> %s', $inTransfer));
                 $progress->advance();
             }
 
-            if ($this->isUptodate($buffer)) {
-                $isUptodate = $this->isUptodate($buffer);
+            if (RsyncOutput::upToDate($buffer)) {
+                $isUptodate = RsyncOutput::upToDate($buffer);
+
                 $progress->setMessage($clock.sprintf('<info>%s</info> is up top date', $isUptodate));
                 $progress->advance();
             }
@@ -109,69 +201,10 @@ class DeployCommand extends Command
 
         $progress->setMessage('finished '."\xF0\x9F\x8D\xBA");
         $progress->finish();
-
+        
         $output->writeln('');
         $output->writeln('<info>$> project successfully deployed.</info>');
-        $output->writeln('');
-    }
 
-    /**
-     * [readToCheck description]
-     * @param  [type] $string [description]
-     * @return [type]         [description]
-     */
-    private function readToCheck($string)
-    {
-        if (preg_match('~(xfer#([0-9]+), to-check=([0-9]+)/([0-9]+))~', $string, $matches)) {
-            return array(
-                'nth_transfer'  => $matches[2],
-                'to_check'      => $matches[3],
-                'total'         => $matches[4],
-            );
-        } else {
-            return false;
-        }
-    }
-
-    /**
-     * [inTranser description]
-     * @param  [type] $string [description]
-     * @return [type]         [description]
-     */
-    public function inTranser($string)
-    {
-        if (preg_match('~^([a-z0-9\/\.]+)$~i', trim($string), $matches)) {
-            return $matches[1];
-        } else {
-            return false;
-        }
-    }
-
-    /**
-     * [toConsider description]
-     * @param  [type] $string [description]
-     * @return [type]         [description]
-     */
-    private function toConsider($string)
-    {
-        if (preg_match('~([0-9]+) files to consider~', $string, $matches)) {
-            return $matches[1];
-        } else {
-            return false;
-        }
-    }
-
-    /**
-     * [readUptodate description]
-     * @return [type] [description]
-     */
-    private function isUptodate($string)
-    {
-        if (preg_match('~(.*) is uptodate~', $string, $matches)) {
-            return $matches[1];
-        } else {
-            return false;
-        }
-
+        return true;
     }
 }
