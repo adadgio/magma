@@ -75,8 +75,46 @@ class DeployCommand extends Command
 
         // deploy with symlink to latest release
         $this->deployWithSymlink($input, $output, $env, $release);
+
+        // setup upload folder permissions
+        $this->setupPermissions($input, $output, $env, $release);
     }
 
+    /**
+     * [setupPermissions description]
+     * @param  [type] $input   [description]
+     * @param  [type] $output  [description]
+     * @param  [type] $env     [description]
+     * @param  [type] $release [description]
+     * @return [type]          [description]
+     */
+    public function setupPermissions($input, $output, $env, $release)
+    {
+        $config = new Config();
+        $cmd = CmdBuilder::permissions($config, $env, $release);
+
+        if (false === $cmd) {
+            return true;
+        }
+
+        $process = new Process($cmd);
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            $output->writeln(sprintf('<error>%s</error>', $process->getOutput()));
+            throw new \Exception('could not setup shared directories');
+        }
+        return true;
+    }
+
+    /**
+     * [setupShared description]
+     * @param  [type] $input   [description]
+     * @param  [type] $output  [description]
+     * @param  [type] $env     [description]
+     * @param  [type] $release [description]
+     * @return [type]          [description]
+     */
     public function setupShared($input, $output, $env, $release)
     {
         $config = new Config();
@@ -88,7 +126,7 @@ class DeployCommand extends Command
 
         $process = new Process($cmd);
         $process->run();
-        
+
         if (!$process->isSuccessful()) {
             $output->writeln(sprintf('<error>%s</error>', $process->getOutput()));
             throw new \Exception('could not setup shared directories');
@@ -116,8 +154,6 @@ class DeployCommand extends Command
         }
 
         $process = new Process($cmd);
-        $process->run();
-
         $output->writeln('<info>$> executing post deploy tasks...</info>');
         $process->run();
 
@@ -144,9 +180,9 @@ class DeployCommand extends Command
         $cmd = CmdBuilder::releaseSymlink($config, $env, $release);
 
         $process = new Process($cmd);
-        $process->run();
 
         $output->writeln('<info>$> deploying with symlink to latest release...</info>');
+        $process->run();
 
         if (!$process->isSuccessful()) {
             throw new \Exception('could not deploy with symlink');
@@ -170,8 +206,6 @@ class DeployCommand extends Command
         $cmd = CmdBuilder::remoteDirs($config, $env, $release);
 
         $process = new Process($cmd);
-        $process->run();
-
         $output->writeln('<info>$> preparing remote folders...</info>');
         $process->run();
 

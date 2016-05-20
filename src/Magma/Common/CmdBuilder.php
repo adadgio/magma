@@ -33,7 +33,7 @@ class CmdBuilder
             // avoid "/" root path left trailing... with ltrim
             $excl = implode(' ', array_map(function ($e) { return '--exclude '.ltrim($e, '/'); }, $exclude));
         }
-
+        
         $cmd = str_replace('  ', ' ',
             vsprintf("rsync -avzP --delete --delete-excluded -v %s %s %s@%s:%s", array($excl, $cwd, $user, $host, $path))
         );
@@ -54,10 +54,9 @@ class CmdBuilder
         $path = rtrim($config->getParameter(sprintf('project.environments.%s.remote.path', $env)), '/');
 
         $releasePath = $path.'/releases/'.$release;
-        $symlinkPath = $path.'/current';
 
         // create symlink from current to latest release
-        $lnsf = sprintf('ln -s %s %s', $releasePath, $symlinkPath);
+        $lnsf = sprintf('cd %s && rm -f current && ln -s %s current', $path, $releasePath);
         $cmd = sprintf('ssh -t %s@%s "%s"', $user, $host, $lnsf);
 
         return $cmd;
@@ -125,7 +124,7 @@ class CmdBuilder
         $bash = vsprintf('mkdir -p %s', array($dirs)); // not used: .' && touch '.$path.'/revisions.log'
 
         $cmd = vsprintf('ssh -t %s@%s "%s"', array($user, $host, $bash));
-        
+
         return $cmd;
     }
 
@@ -154,6 +153,42 @@ class CmdBuilder
         $bash = $taskCd.' && '.implode(' && ', $tasks);
 
         $cmd = vsprintf('ssh -t %s@%s "%s"', array($user, $host, $bash));
+
+        return $cmd;
+    }
+
+    /**
+     * [setPermissions description]
+     * @param Config $config  [description]
+     * @param [type] $env     [description]
+     * @param [type] $release [description]
+     */
+    public static function permissions(Config $config, $env, $release)
+    {
+        $user = $config->getParameter(sprintf('project.environments.%s.remote.user', $env));
+        $host = $config->getParameter(sprintf('project.environments.%s.remote.host', $env));
+        $path = $config->getParameter(sprintf('project.environments.%s.remote.path', $env));
+
+        $writables = $config->getParameter(sprintf('project.writable_folders', $env));
+        if (empty($writables)) {
+            return false;
+        }
+
+        // folders permissions
+        $bashes = array();
+        foreach ($writables as $dir) {
+            $dir = $path.'/current/'.trim($dir, '/');
+            $bashes[] = "find {$dir} -type d -exec chmod 755 {} \;";
+        }
+        foreach ($writables as $dir) {
+            $dir = $path.'/current/'.trim($dir, '/');
+            $bashes[] = "find {$dir} -type f -exec chmod 644 {} \;";
+        }
+
+        $bash = implode(' && ', $bashes);
+        $cmd = vsprintf('ssh -t %s@%s "%s"', array($user, $host, $bash));
+
+        echo $cmd; exit;
 
         return $cmd;
     }
