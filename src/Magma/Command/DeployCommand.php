@@ -75,7 +75,7 @@ class DeployCommand extends Command
 
         // deploy with symlink to latest release
         $this->deployWithSymlink($input, $output, $env, $release);
-        
+
         // setup upload folder permissions
         //$this->setupPermissions($input, $output, $env, $release);
     }
@@ -125,8 +125,9 @@ class DeployCommand extends Command
         }
 
         $process = new Process($cmd);
+        $process->setTimeout(90); // unlimited timeout
         $process->run();
-
+        
         if (!$process->isSuccessful()) {
             $output->writeln(sprintf('<error>%s</error>', $process->getOutput()));
             throw new \Exception('could not setup shared directories');
@@ -154,6 +155,7 @@ class DeployCommand extends Command
         }
 
         $process = new Process($cmd);
+        $process->setTimeout(null); // unlimited timeout
         $output->writeln('<info>$> executing post deploy tasks...</info>');
         $process->run();
 
@@ -180,7 +182,6 @@ class DeployCommand extends Command
         $cmd = CmdBuilder::releaseSymlink($config, $env, $release);
 
         $process = new Process($cmd);
-
         $output->writeln('<info>$> deploying with symlink to latest release...</info>');
         $process->run();
 
@@ -231,6 +232,7 @@ class DeployCommand extends Command
         $cmd = CmdBuilder::rsync($config, $env, $release);
 
         $process = new Process($cmd);
+        $process->setTimeout(null); // unlimited timeout
         $progress = new ProgressBar($output);
 
         $clocks = array(
@@ -243,7 +245,7 @@ class DeployCommand extends Command
         $output->writeln('<info>$> Deploying project...</info>');
 
         // $progress->setMessage('Task starts');
-        $progress->setFormat(' %current%/%max% [%bar%] %message%');
+        $progress->setFormat(' %current% [%bar%] %message%');
         $progress->setMessage($clocks[0].static::SPACE.'starting...');
         $progress->start();
 
@@ -266,12 +268,12 @@ class DeployCommand extends Command
                 $progress->advance();
             }
 
-            if (RsyncOutput::inTranser($buffer)) {
-                $inTransfer = RsyncOutput::inTranser($buffer);
-
-                $progress->setMessage($clock.sprintf('<info>transfering</info> %s', $inTransfer));
-                $progress->advance();
-            }
+            // if (RsyncOutput::inTranser($buffer)) {
+            //     $inTransfer = RsyncOutput::inTranser($buffer);
+            //
+            //     $progress->setMessage($clock.sprintf('<info>transfering</info> %s', $inTransfer));
+            //     $progress->advance();
+            // }
 
             if (RsyncOutput::upToDate($buffer)) {
                 $isUptodate = RsyncOutput::upToDate($buffer);
