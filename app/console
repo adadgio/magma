@@ -1,0 +1,19 @@
+#!/usr/bin/env php
+
+<?php
+/**
+ * Magma console app
+ * @author Romain BRUCKERT
+ */
+set_time_limit(0);
+date_default_timezone_set('America/Los_Angeles');
+
+// include the composer autoloader
+require_once __DIR__ . '/../vendor/autoload.php';
+
+// import the Symfony Console Application
+use Symfony\Component\Console\Application;
+
+$app = new Application('Magma 360medical command tool', '1.0');
+$app->add(new Magma\Command\DeployCommand());
+$app->run();

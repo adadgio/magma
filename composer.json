@@ -1,0 +1,16 @@
+{
+    "name": "360medical/magma",
+    "description": "Magma 360medical app editor",
+    "require": {
+        "php": ">=5.3.3",
+        "symfony/console": "^3.0",
+        "symfony/finder": "^3.0",
+        "symfony/filesystem": "^3.0",
+        "symfony/process": "^3.0"
+    },
+    "autoload": {
+        "psr-0": {
+            "": "src/"
+        }
+    }
+}
