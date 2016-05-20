@@ -62,16 +62,39 @@ class DeployCommand extends Command
         }
 
         // prepare remote project folders
-        //$this->prepareReleaseDirectories($input, $output, $env, $release);
+        $this->prepareReleaseDirectories($input, $output, $env, $release);
 
         // rsync to remote directory (latest releasr)
-        //$this->rsyncToRemote($input, $output, $env, $release);
+        $this->rsyncToRemote($input, $output, $env, $release);
+
+        // setup shared directories symlink from the release to shared dirs
+        $this->setupShared($input, $output, $env, $release);
 
         // execute post deploy tasks
         $this->postDeploy($input, $output, $env, $release);
-        
+
         // deploy with symlink to latest release
-        //$this->deployWithSymlink($input, $output, $env, $release);
+        $this->deployWithSymlink($input, $output, $env, $release);
+    }
+
+    public function setupShared($input, $output, $env, $release)
+    {
+        $config = new Config();
+        $cmd = CmdBuilder::sharedDirs($config, $env, $release);
+
+        if (false === $cmd) {
+            return true;
+        }
+
+        $process = new Process($cmd);
+        $process->run();
+        
+        if (!$process->isSuccessful()) {
+            $output->writeln(sprintf('<error>%s</error>', $process->getOutput()));
+            throw new \Exception('could not setup shared directories');
+        }
+
+        return true;
     }
 
     /**
@@ -99,7 +122,7 @@ class DeployCommand extends Command
         $process->run();
 
         if (!$process->isSuccessful()) {
-            $output->writeln(sprintf('<error></error>', $process->getOutput()));
+            $output->writeln(sprintf('<error>%s</error>', $process->getOutput()));
             throw new \Exception('could not execute some post deploy tasks');
         }
 
@@ -124,7 +147,6 @@ class DeployCommand extends Command
         $process->run();
 
         $output->writeln('<info>$> deploying with symlink to latest release...</info>');
-        $process->run();
 
         if (!$process->isSuccessful()) {
             throw new \Exception('could not deploy with symlink');
@@ -233,12 +255,11 @@ class DeployCommand extends Command
         });
 
         // run post deploy tasks
-
         $progress->setMessage('finished '."\xF0\x9F\x8D\xBA");
         $progress->finish();
 
         $output->writeln('');
-        $output->writeln('<info>$> project successfully deployed.</info>');
+        $output->writeln('<info>$> project files transfered</info>');
 
         return true;
     }

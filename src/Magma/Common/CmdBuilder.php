@@ -7,6 +7,10 @@ use Symfony\Component\PropertyAccess\PropertyAccess;
 
 class CmdBuilder
 {
+    private static $defaultExclude = array(
+        '.git/', '.gitignore', '.gitkeep', '.DS_Store', 'magma.yml',
+    );
+
     /**
      * Builds the rsync command from config arguments.
      *
@@ -23,6 +27,7 @@ class CmdBuilder
         $path = rtrim($config->getParameter(sprintf('project.environments.%s.remote.path', $env)), '/').'/releases/'.$release;
 
         $exclude = $config->getParameter('project.exclude');
+        $exclude = array_merge(self::$defaultExclude, $exclude);
 
         if (!empty($exclude)) {
             // avoid "/" root path left trailing... with ltrim
@@ -48,12 +53,46 @@ class CmdBuilder
         $host = $config->getParameter(sprintf('project.environments.%s.remote.host', $env));
         $path = rtrim($config->getParameter(sprintf('project.environments.%s.remote.path', $env)), '/');
 
-        $latestReleasePath = $path.'/releases/'.$release;
+        $releasePath = $path.'/releases/'.$release;
         $symlinkPath = $path.'/current';
 
         // create symlink from current to latest release
-        $lnsf = vsprintf('cd %s && find -type l -delete && ln -s %s %s', array($path, $latestReleasePath, $symlinkPath));
+        $lnsf = sprintf('ln -s %s %s', $releasePath, $symlinkPath);
+        $cmd = sprintf('ssh -t %s@%s "%s"', $user, $host, $lnsf);
 
+        return $cmd;
+    }
+
+    /**
+     * [sharedDirs description]
+     * @param  Config $config  [description]
+     * @param  [type] $env     [description]
+     * @param  [type] $release [description]
+     * @return [type]          [description]
+     */
+    public static function sharedDirs(Config $config, $env, $release)
+    {
+        $user = $config->getParameter(sprintf('project.environments.%s.remote.user', $env));
+        $host = $config->getParameter(sprintf('project.environments.%s.remote.host', $env));
+        $path = $config->getParameter(sprintf('project.environments.%s.remote.path', $env));
+        $shared = $config->getParameter('project.shared');
+
+        $releasePath = $path.'/releases/'.$release;
+
+        // add other symlinks for shared directories
+        // create symlinks for each shared directory
+        $lnlses = array();
+        foreach ($shared as $dir) {
+            $target = $path.'/shared/'.rtrim($dir, '/');
+            $origin = $releasePath.'/'.rtrim($dir, '/');
+            $lnlses[] = "ln -s {$target} {$origin}";
+        }
+
+        if (empty($lnlses)) {
+            return false;
+        }
+
+        $lnsf = implode(' && ', $lnlses);
         $cmd = vsprintf('ssh -t %s@%s "%s"', array($user, $host, $lnsf));
 
         return $cmd;
@@ -68,17 +107,25 @@ class CmdBuilder
         $user = $config->getParameter(sprintf('project.environments.%s.remote.user', $env));
         $host = $config->getParameter(sprintf('project.environments.%s.remote.host', $env));
         $path = $config->getParameter(sprintf('project.environments.%s.remote.path', $env));
+        $shared = $config->getParameter('project.shared');
+
+        $releasePath = $path.'/releases/'.$release;
 
         $pathes = array(
-            // $path.'/releases/latest',
-            $path.'/releases/'.$release,
+            $path.'/shared',
+            $releasePath,
         );
 
+        // also create all the shared folders
+        foreach($shared as $sharedDir) {
+            $pathes[] = $path.'/shared/'.$sharedDir;
+        }
+
         $dirs = implode(' ', $pathes);
-        $bash = vsprintf('mkdir -p %s', array($dirs));
+        $bash = vsprintf('mkdir -p %s', array($dirs)); // not used: .' && touch '.$path.'/revisions.log'
 
         $cmd = vsprintf('ssh -t %s@%s "%s"', array($user, $host, $bash));
-
+        
         return $cmd;
     }
 
@@ -93,7 +140,9 @@ class CmdBuilder
         $user = $config->getParameter(sprintf('project.environments.%s.remote.user', $env));
         $host = $config->getParameter(sprintf('project.environments.%s.remote.host', $env));
         $path = $config->getParameter(sprintf('project.environments.%s.remote.path', $env));
+
         $tasks = $config->getParameter(sprintf('project.environments.%s.remote.post_deploy', $env));
+
         $releasePath = $path.'/releases/'.$release;
 
         if (empty($tasks)) {
@@ -103,8 +152,9 @@ class CmdBuilder
         // cd into latest release
         $taskCd = sprintf('cd %s', $releasePath);
         $bash = $taskCd.' && '.implode(' && ', $tasks);
-        
+
         $cmd = vsprintf('ssh -t %s@%s "%s"', array($user, $host, $bash));
+
         return $cmd;
     }
 }
