@@ -20,7 +20,7 @@ class CmdBuilder
     public static function rsync(Config $config, $env, $release)
     {
         $cwd = rtrim($config->getCwd(), '/').'/'; // "/" to sync all files inside the top dir
-
+        
         $excl = null;
         $user = $config->getParameter(sprintf('project.environments.%s.remote.user', $env));
         $host = $config->getParameter(sprintf('project.environments.%s.remote.host', $env));
@@ -33,7 +33,7 @@ class CmdBuilder
             // avoid "/" root path left trailing... with ltrim
             $excl = implode(' ', array_map(function ($e) { return '--exclude '.ltrim($e, '/'); }, $exclude));
         }
-        
+
         $cmd = str_replace('  ', ' ',
             vsprintf("rsync -avzP --delete --delete-excluded -v %s %s %s@%s:%s", array($excl, $cwd, $user, $host, $path))
         );

@@ -75,9 +75,9 @@ class DeployCommand extends Command
 
         // deploy with symlink to latest release
         $this->deployWithSymlink($input, $output, $env, $release);
-
+        
         // setup upload folder permissions
-        $this->setupPermissions($input, $output, $env, $release);
+        //$this->setupPermissions($input, $output, $env, $release);
     }
 
     /**
