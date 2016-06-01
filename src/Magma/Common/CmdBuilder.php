@@ -3,42 +3,134 @@
 namespace Magma\Common;
 
 use Symfony\Component\Yaml\Yaml;
+use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\PropertyAccess\PropertyAccess;
 
 class CmdBuilder
 {
+    /**
+     * @var boolean Rsync option, deletes excluded dirs/files from remote
+     */
+    const RSYNC_DELETE_EXCLUDED = true;
+
     private static $defaultExclude = array(
         '.git/', '.gitignore', '.gitkeep', '.DS_Store', 'magma.yml',
     );
 
     /**
-     * Builds the rsync command from config arguments.
+     * Chain bash commands.
      *
-     * @param [object] \Config
-     * @return [string] Rsync command to be executed
+     * @param  array  List of separate bash commands
+     * @return string Merged (chained) commands as a string
      */
-    public static function rsync(Config $config, $env, $release)
+    public static function chain(array $commands = array())
     {
-        $cwd = rtrim($config->getCwd(), '/').'/'; // "/" to sync all files inside the top dir
-        
-        $excl = null;
-        $user = $config->getParameter(sprintf('project.environments.%s.remote.user', $env));
-        $host = $config->getParameter(sprintf('project.environments.%s.remote.host', $env));
-        $path = rtrim($config->getParameter(sprintf('project.environments.%s.remote.path', $env)), '/').'/releases/'.$release;
+        return implode(' && ', $commands);
+    }
 
-        $exclude = $config->getParameter('project.exclude');
-        $exclude = array_merge(self::$defaultExclude, $exclude);
+    /**
+     * Create a command to export a variable to environment.
+     *
+     * @param  [type] $variable [description]
+     * @param  [type] $value    [description]
+     * @return [type]           [description]
+     */
+    public static function export($variable, $value)
+    {
+        return sprintf('export %s=%s', $variable, $value);
+    }
 
-        if (!empty($exclude)) {
-            // avoid "/" root path left trailing... with ltrim
-            $excl = implode(' ', array_map(function ($e) { return '--exclude '.ltrim($e, '/'); }, $exclude));
+    /**
+     * Create a command to cd into a directory.
+     *
+     * @param  [type] $directory [description]
+     * @return [type]            [description]
+     */
+    public static function cd($directory)
+    {
+        return 'cd '.$directory;
+    }
+
+    /**
+     * Create a bash command to execute bash instruction(s) to remote.
+     *
+     * @param  [string] Remote $user
+     * @param  [string] Remote $host
+     * @param  [mixed]  String or array of bash commands
+     * @return [string] Final ssh bash command
+     */
+    public static function ssh($user, $host, $instructions)
+    {
+        if (is_array($instructions)) {
+            $bash = self::chain($instructions);
+        } else {
+            $bash = $instructions;
         }
 
-        $cmd = str_replace('  ', ' ',
-            vsprintf("rsync -avzP --delete --delete-excluded -v %s %s %s@%s:%s", array($excl, $cwd, $user, $host, $path))
+        return sprintf('ssh -t -t %s@%s "%s"', $user, $host, $bash);
+    }
+
+    /**
+     * Create bash commands to create directories recursively.
+     *
+     * @param  [array] List of directories
+     * @return [array] Bash commands
+     */
+    public static function mkdirs(array $directories = array())
+    {
+        return array_map(function ($dir) {
+            return 'mkdir -p '.$dir;
+        }, $directories);
+    }
+
+    /**
+     * Create a bash rsync files and folder from the current working
+     * directory to the specified remote directory.
+     *
+     * @param  [type] $user       [description]
+     * @param  [type] $host       [description]
+     * @param  [type] $remotePath [description]
+     * @param  array  $options    [description]
+     * @return [type]             [description]
+     */
+    public static function rsync($user, $host, $remotePath, array $options = array())
+    {
+        $cwd = rtrim(getcwd(), '/').'/'; // rsync without top dir beeing created
+
+        $resolver = new OptionsResolver();
+        $resolver->setDefaults(array(
+            'exclude' => self::$defaultExclude,
+            'delete-excluded' => false,
+        ));
+        $options = $resolver->resolve($options);
+
+        // handle exclude files/folders option
+        if (null !== $options['exclude']) {
+            // merge with default exclude list (crap list .DS_Store)
+            $options['exclude'] = array_merge(self::$defaultExclude, $options['exclude']);
+
+            // make sure exclude path is always relative
+            $options['exclude'] = array_map(function ($dir) {
+                return " --exclude=".trim($dir, '/').'/'; // formats to "dir/path/"
+            }, $options['exclude']);
+
+            $exclude = implode('', $options['exclude']);
+
+        } else {
+            $exclude = null;
+        }
+
+        // handle delete excluded option
+        if (static::RSYNC_DELETE_EXCLUDED === $options['delete-excluded']) {
+            $deleteExcluded = ' --delete-excluded';
+        }
+
+        // build the final rsync command
+        $command = sprintf('rsync -avzP --stats --delete%s -v%s %s %s@%s:%s',
+            $deleteExcluded, $exclude, $cwd, $user, $host, $remotePath
         );
 
-        return $cmd;
+        return $command;
     }
 
     /**
@@ -63,99 +155,20 @@ class CmdBuilder
     }
 
     /**
-     * [sharedDirs description]
-     * @param  Config $config  [description]
-     * @param  [type] $env     [description]
-     * @param  [type] $release [description]
+     * Create a bash symlink command.
+     *
+     * @param  [type] $target  [description]
+     * @param  [type] $symlink [description]
      * @return [type]          [description]
      */
-    public static function sharedDirs(Config $config, $env, $release)
+    public static function symlink($target, $symlink)
     {
-        $user = $config->getParameter(sprintf('project.environments.%s.remote.user', $env));
-        $host = $config->getParameter(sprintf('project.environments.%s.remote.host', $env));
-        $path = $config->getParameter(sprintf('project.environments.%s.remote.path', $env));
-        $shared = $config->getParameter('project.shared');
+        $target = rtrim($target, '/');
+        $symlink = rtrim($symlink, '/');
 
-        $releasePath = $path.'/releases/'.$release;
-
-        // add other symlinks for shared directories
-        // create symlinks for each shared directory
-        $lnlses = array();
-        foreach ($shared as $dir) {
-            $target = $path.'/shared/'.rtrim($dir, '/');
-            $origin = $releasePath.'/'.rtrim($dir, '/');
-            $lnlses[] = "ln -s {$target} {$origin}";
-        }
-
-        if (empty($lnlses)) {
-            return false;
-        }
-
-        $lnsf = implode(' && ', $lnlses);
-        $cmd = vsprintf('ssh -t %s@%s "%s"', array($user, $host, $lnsf));
-
-        return $cmd;
+        return sprintf('ln -s %s %s', $target, $symlink);
     }
-
-    /**
-     * Builds the remote dirs prepare command.
-     *
-     */
-    public static function remoteDirs(Config $config, $env, $release)
-    {
-        $user = $config->getParameter(sprintf('project.environments.%s.remote.user', $env));
-        $host = $config->getParameter(sprintf('project.environments.%s.remote.host', $env));
-        $path = $config->getParameter(sprintf('project.environments.%s.remote.path', $env));
-        $shared = $config->getParameter('project.shared');
-
-        $releasePath = $path.'/releases/'.$release;
-
-        $pathes = array(
-            $path.'/shared',
-            $releasePath,
-        );
-
-        // also create all the shared folders
-        foreach($shared as $sharedDir) {
-            $pathes[] = $path.'/shared/'.$sharedDir;
-        }
-
-        $dirs = implode(' ', $pathes);
-        $bash = vsprintf('mkdir -p %s', array($dirs)); // not used: .' && touch '.$path.'/revisions.log'
-
-        $cmd = vsprintf('ssh -t %s@%s "%s"', array($user, $host, $bash));
-
-        return $cmd;
-    }
-
-    /**
-     * Builds the rsync command from config arguments.
-     *
-     * @param [object] \Config
-     * @return [string] Rsync command to be executed
-     */
-    public static function postDeploy(Config $config, $env, $release)
-    {
-        $user = $config->getParameter(sprintf('project.environments.%s.remote.user', $env));
-        $host = $config->getParameter(sprintf('project.environments.%s.remote.host', $env));
-        $path = $config->getParameter(sprintf('project.environments.%s.remote.path', $env));
-
-        $tasks = $config->getParameter(sprintf('project.environments.%s.remote.post_deploy', $env));
-
-        $releasePath = $path.'/releases/'.$release;
-
-        if (empty($tasks)) {
-            return false;
-        }
-
-        // cd into latest release
-        $taskCd = sprintf('cd %s', $releasePath);
-        $bash = $taskCd.' && '.implode(' && ', $tasks);
-
-        $cmd = vsprintf('ssh -t %s@%s "%s"', array($user, $host, $bash));
-
-        return $cmd;
-    }
+    
 
     /**
      * [setPermissions description]

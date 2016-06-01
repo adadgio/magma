@@ -6,7 +6,7 @@
  * @author Romain BRUCKERT
  */
 set_time_limit(0);
-date_default_timezone_set('America/Los_Angeles');
+date_default_timezone_set('Europe/Paris');
 
 // include the composer autoloader
 require_once __DIR__ . '/../vendor/autoload.php';
@@ -15,5 +15,10 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use Symfony\Component\Console\Application;
 
 $app = new Application('Magma 360medical command tool', '1.0');
+$app->add(new Magma\Command\ConfigTestCommand());
 $app->add(new Magma\Command\DeployCommand());
+$app->add(new Magma\Command\ProjectSetupCommand());
+$app->add(new Magma\Command\ReleaseUploadCommand());
+$app->add(new Magma\Command\ReleaseSetupSharedCommand());
+$app->add(new Magma\Command\PostDeployCommand());
 $app->run();
