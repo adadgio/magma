@@ -30,7 +30,7 @@ class DeployCommand extends Command
             ->setHelp('Deploys project to server as a new release using local configuration file')
         ;
     }
-    
+
     /**
      * Execute command.
      *

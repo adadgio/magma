@@ -2,9 +2,11 @@
 
 <?php
 /**
- * Magma console app
+ * Magma Sf project deployment console command app
  * @author Romain BRUCKERT
+ * Github {@link https://github.com/adadgio/magma}
  */
+define('MAGMA_VERSION', '1.0');
 set_time_limit(0);
 date_default_timezone_set('Europe/Paris');
 
@@ -14,7 +16,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 // import the Symfony Console Application
 use Symfony\Component\Console\Application;
 
-$app = new Application('Magma 360medical command tool', '1.0');
+$app = new Application('Magma Sf project deployment tool', MAGMA_VERSION);
 $app->add(new Magma\Command\ConfigTestCommand());
 $app->add(new Magma\Command\DeployCommand());
 $app->add(new Magma\Command\ProjectSetupCommand());
