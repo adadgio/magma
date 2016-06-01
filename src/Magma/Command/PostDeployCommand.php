@@ -50,7 +50,7 @@ class PostDeployCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         $config = new Config();
-
+        
         $env = $input->getArgument('env');
         $release = $input->getArgument('release');
 
@@ -61,7 +61,7 @@ class PostDeployCommand extends Command
 
         $releaseDirPath = $path.'/releases/'.$release;
         $postDeployTasks = $config->getParameter(sprintf('project.environments.%s.post_deploy', $env));
-        
+
         $commands = array(
             CmdBuilder::export('SYMFONY_ENV', $env),
             CmdBuilder::cd($releaseDirPath),

@@ -30,7 +30,7 @@ class DeployCommand extends Command
             ->setHelp('Deploys project to server as a new release using local configuration file')
         ;
     }
-
+    
     /**
      * Execute command.
      *
@@ -44,7 +44,7 @@ class DeployCommand extends Command
         $release = new Release();
 
         $helper = $this->getHelper('question');
-        
+
         // read the config to find available environments
         $environments = array_keys($config->getParameter('project.environments'));
         $question = new Question(sprintf('<info>$> Choose your deploy environment target [%s]?</info> ', $environments[0]), $environments[0]);
@@ -53,7 +53,5 @@ class DeployCommand extends Command
         if (!in_array($env, $environments)) {
             throw new \Exception(sprintf('Environment "%s" does not exist', $env));
         }
-
-
     }
 }
