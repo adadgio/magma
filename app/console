@@ -18,9 +18,16 @@ use Symfony\Component\Console\Application;
 
 $app = new Application('Magma Sf project deployment tool', MAGMA_VERSION);
 $app->add(new Magma\Command\ConfigTestCommand());
-$app->add(new Magma\Command\DeployCommand());
-$app->add(new Magma\Command\ProjectSetupCommand());
+
+$app->add(new Magma\Command\ReleaseSetupCommand());
 $app->add(new Magma\Command\ReleaseUploadCommand());
-$app->add(new Magma\Command\ReleaseSetupSharedCommand());
-$app->add(new Magma\Command\PostDeployCommand());
+$app->add(new Magma\Command\ReleaseShareCommand());
+
+$app->add(new Magma\Command\ReleasePreDeployCommand());
+$app->add(new Magma\Command\CachePermissionsCommand());
+$app->add(new Magma\Command\ReleasePublishCommand()); // the website actually goes live!
+$app->add(new Magma\Command\ReleasePostDeployCommand());
+
+// can execute all the above commands in order
+$app->add(new Magma\Command\DeployCommand());
 $app->run();

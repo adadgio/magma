@@ -71,6 +71,22 @@ class CmdBuilder
     }
 
     /**
+     * Set up symfony permissions, (for Debian only!)
+     * @link http://symfony.com/doc/current/book/installation.html#book-installation-permissions
+     */
+    public static function sfPerms()
+    {
+        return array(
+            //'rm -rf app/cache/* app/logs/*',
+            'chmod -R 775 app/logs',
+            'chmod -R 775 app/cache',
+            // "HTTPDUSER=`ps axo user,comm | grep -E '[a]pache|[h]ttpd|[_]www|[w]ww-data|[n]ginx' | grep -v root | head -1 | cut -d\  -f1`",
+            // 'setfacl -R -m u:\"$HTTPDUSER\":rwX -m u:`whoami`:rwX app/cache app/logs',
+            // 'setfacl -dR -m u:\"$HTTPDUSER\":rwX -m u:`whoami`:rwX app/cache app/logs',
+        );
+    }
+
+    /**
      * Create bash commands to create directories recursively.
      *
      * @param  [array] List of directories
@@ -92,6 +108,8 @@ class CmdBuilder
      * @param  [type] $remotePath [description]
      * @param  array  $options    [description]
      * @return [type]             [description]
+     * -a Use archive mode, quicker uploads
+     * -p preserver (destination) permissions (a priori)
      */
     public static function rsync($user, $host, $remotePath, array $options = array())
     {
@@ -111,7 +129,7 @@ class CmdBuilder
 
             // make sure exclude path is always relative
             $options['exclude'] = array_map(function ($dir) {
-                return " --exclude=".trim($dir, '/').'/'; // formats to "dir/path/"
+                return " --exclude=".trim($dir, '/'); // formats to "dir/path/"
             }, $options['exclude']);
 
             $exclude = implode('', $options['exclude']);
@@ -124,6 +142,8 @@ class CmdBuilder
         if (static::RSYNC_DELETE_EXCLUDED === $options['delete-excluded']) {
             $deleteExcluded = ' --delete-excluded';
         }
+        
+        //print_r($exclude); exit;
 
         // build the final rsync command
         $command = sprintf('rsync -avzP --stats --delete%s -v%s %s %s@%s:%s',
@@ -131,27 +151,6 @@ class CmdBuilder
         );
 
         return $command;
-    }
-
-    /**
-     * Builds the rsync command from config arguments.
-     *
-     * @param [object] \Config
-     * @return [string] Rsync command to be executed
-     */
-    public static function releaseSymlink(Config $config, $env, $release)
-    {
-        $user = $config->getParameter(sprintf('project.environments.%s.remote.user', $env));
-        $host = $config->getParameter(sprintf('project.environments.%s.remote.host', $env));
-        $path = rtrim($config->getParameter(sprintf('project.environments.%s.remote.path', $env)), '/');
-
-        $releasePath = $path.'/releases/'.$release;
-
-        // create symlink from current to latest release
-        $lnsf = sprintf('cd %s && rm -f current && ln -s %s current', $path, $releasePath);
-        $cmd = sprintf('ssh -t %s@%s "%s"', $user, $host, $lnsf);
-
-        return $cmd;
     }
 
     /**
@@ -166,15 +165,11 @@ class CmdBuilder
         $target = rtrim($target, '/');
         $symlink = rtrim($symlink, '/');
 
-        return sprintf('ln -s %s %s', $target, $symlink);
+        return sprintf('ln -sfn %s %s', $target, $symlink); // "-f" force, "-n" prevents nested symlinks to be created
     }
-    
 
     /**
-     * [setPermissions description]
-     * @param Config $config  [description]
-     * @param [type] $env     [description]
-     * @param [type] $release [description]
+     * @deprecated Not used anywhere
      */
     public static function permissions(Config $config, $env, $release)
     {

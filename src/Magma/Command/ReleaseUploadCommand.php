@@ -26,7 +26,7 @@ class ReleaseUploadCommand extends Command
     {
         $this
             ->setName('release:upload')
-            ->setDescription('Sets up remote directory structure')
+            ->setDescription('Upload release files to remote (release has to be setup first)')
             ->addArgument(
                 'env',
                 InputArgument::REQUIRED,
@@ -37,7 +37,6 @@ class ReleaseUploadCommand extends Command
                 InputArgument::REQUIRED,
                 'The name of the release'
             )
-            ->setHelp('Set up remote directory structure')
         ;
     }
 
@@ -75,7 +74,7 @@ class ReleaseUploadCommand extends Command
             'exclude' => $config->getParameter('project.exclude'),
             'delete-excluded' => CmdBuilder::RSYNC_DELETE_EXCLUDED
         );
-
+        
         $command = CmdBuilder::rsync($user, $host, $releaseDirPath, $rsyncOptions);
 
         // execute process via ssh
@@ -144,7 +143,7 @@ class ReleaseUploadCommand extends Command
             $table->render();
         }
     }
-    
+
     /**
      * Gets rsync putput with the "--stats" options.
      *

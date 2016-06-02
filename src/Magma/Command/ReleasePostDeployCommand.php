@@ -14,7 +14,7 @@ use Magma\Common\Config;
 use Magma\Common\CmdBuilder;
 use Magma\Common\PathBuilder;
 
-class PostDeployCommand extends Command
+class ReleasePostDeployCommand extends Command
 {
     /**
      * Configure command.
@@ -24,8 +24,8 @@ class PostDeployCommand extends Command
     protected function configure()
     {
         $this
-            ->setName('post:deploy')
-            ->setDescription('Execute post deploy commands')
+            ->setName('release:postdeploy')
+            ->setDescription('Execute release post deploy commands')
             ->addArgument(
                 'env',
                 InputArgument::REQUIRED,
@@ -36,7 +36,6 @@ class PostDeployCommand extends Command
                 InputArgument::REQUIRED,
                 'The name of the release'
             )
-            ->setHelp('Execute post deploy commands')
         ;
     }
 
@@ -50,7 +49,7 @@ class PostDeployCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         $config = new Config();
-        
+
         $env = $input->getArgument('env');
         $release = $input->getArgument('release');
 
@@ -88,19 +87,24 @@ class PostDeployCommand extends Command
     {
         $process = new Process($command);
         $process->setTimeout(null);
-        $output->writeln('<info>  $> executing post deploy tasks</info>');
+        $output->writeln('<info>  $> executing <fg=white>post deploy</> deploy tasks</info>');
 
-        $process->run(function ($type, $buffer) use ($output) {
-            echo $buffer;
+        // only verbose allows to show the post deploy tasks...
+        $verbose = ($output->getVerbosity() >= OutputInterface::VERBOSITY_VERBOSE) ? true : false;
+
+        $process->run(function ($type, $buffer) use ($verbose) {
+            if ($verbose) {
+                echo $buffer;
+            }
         });
 
         if (!$process->isSuccessful()) {
             // quit on error
-            $output->writeln('<info>  $> executing post deploy tasks: </info><error>NOT OK</error>');
+            $output->writeln('<info>  $> executing <fg=white>post deploy</> deploy tasks: </info><error>NOT OK</error>');
             exit(1); // bash code error
             // throw new \Exception('cannot create remote directories');
         }
 
-        $output->writeln('<info>  $> executing post deploy tasks: </info>OK');
+        $output->writeln('<info>  $> <fg=white>post deploy</> deploy tasks: </info>OK');
     }
 }

@@ -5,13 +5,15 @@ namespace Magma\Command;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
-// use Symfony\Component\Console\Input\InputOption;
-// use Symfony\Component\Console\Input\InputArgument;
-use Symfony\Component\Process\Process;
+//use Symfony\Component\Process\Process;
 use Symfony\Component\Console\Question\Question;
-use Symfony\Component\Console\Helper\ProgressBar;
+// use Symfony\Component\Console\Helper\ProgressBar;
+
+use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Input\InputArgument;
 
 use Magma\Common\Config;
+use Magma\Common\Release;
 use Magma\Common\CmdBuilder;
 use Magma\Common\RsyncOutput;
 
@@ -41,7 +43,7 @@ class DeployCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         $config = new Config();
-        $release = new Release();
+        $release = new Release(); // create a new release (and name!)
 
         $helper = $this->getHelper('question');
 
@@ -53,5 +55,28 @@ class DeployCommand extends Command
         if (!in_array($env, $environments)) {
             throw new \Exception(sprintf('Environment "%s" does not exist', $env));
         }
+        
+        // release setup
+        $this->runSubCommand('release:setup', $input, $output, $env, $release);
+        $this->runSubCommand('release:upload', $input, $output, $env, $release);
+        $this->runSubCommand('release:share', $input, $output, $env, $release);
+        $this->runSubCommand('release:predeploy', $input, $output, $env, $release);
+        $this->runSubCommand('cache:permissions', $input, $output, $env, $release);
+        $this->runSubCommand('release:publish', $input, $output, $env, $release);
+        $this->runSubCommand('release:postdeploy', $input, $output, $env, $release);
+    }
+
+    private function runSubCommand($name, InputInterface $input, OutputInterface $output, $env, $release)
+    {
+
+
+        $command = $this->getApplication()->find($name);
+        $arrayInput = new ArrayInput(array(
+            'command'   => $name,
+            'env'       => $env,
+            'release'   => $release->getName(),
+        ));
+
+        return $command->run($arrayInput, $output);
     }
 }

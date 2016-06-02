@@ -12,9 +12,17 @@ class Release
     /**
      * Class contructor, reads the config.
      */
-    public function __construct()
+    public function __construct($name = null)
     {
-        $this->name = microtime();
+        if (null === $name) {
+            $this->name = time();
+        } else {
+            $this->name = $name;
+        }
+
+        if (empty($this->name)) {
+            throw new \Exception('Release name cannot be empty');
+        }
     }
 
     /**

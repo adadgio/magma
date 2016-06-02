@@ -14,7 +14,7 @@ use Magma\Common\Config;
 use Magma\Common\CmdBuilder;
 use Magma\Common\PathBuilder;
 
-class ProjectSetupCommand extends Command
+class ReleasePreDeployCommand extends Command
 {
     /**
      * Configure command.
@@ -24,8 +24,8 @@ class ProjectSetupCommand extends Command
     protected function configure()
     {
         $this
-            ->setName('project:setup')
-            ->setDescription('Sets up remote directory structure')
+            ->setName('release:predeploy')
+            ->setDescription('Execute release pre deploy commands')
             ->addArgument(
                 'env',
                 InputArgument::REQUIRED,
@@ -36,7 +36,6 @@ class ProjectSetupCommand extends Command
                 InputArgument::REQUIRED,
                 'The name of the release'
             )
-            ->setHelp('Set up remote directory structure')
         ;
     }
 
@@ -57,19 +56,22 @@ class ProjectSetupCommand extends Command
         $user = $config->getParameter(sprintf('project.environments.%s.remote.user', $env));
         $host = $config->getParameter(sprintf('project.environments.%s.remote.host', $env));
         $path = $config->getParameter(sprintf('project.environments.%s.remote.path', $env));
-        $shared = $config->getParameter('project.shared');
+        // $shared = $config->getParameter('project.shared');
 
         $releaseDirPath = $path.'/releases/'.$release;
-        $sharedDirsPath = PathBuilder::create($path.'/shared/', $shared);
+        $postDeployTasks = $config->getParameter(sprintf('project.environments.%s.pre_deploy', $env));
 
-        // combine all pathes to create
-        $directories = array($releaseDirPath);
-        $directories = array_merge($directories, $sharedDirsPath);
+        $commands = array(
+            CmdBuilder::export('SYMFONY_ENV', $env),
+            CmdBuilder::cd($releaseDirPath),
+        );
 
-        // prepare the commands to create them all recursively
-        $commands = CmdBuilder::mkdirs($directories);
-        $command = CmdBuilder::ssh($user, $host, $commands);
+        foreach ($postDeployTasks as $task) {
+            $commands[] = $task;
+        }
 
+        $command = CmdBuilder::ssh($user, $host, CmdBuilder::chain($commands));
+        
         // execute process via ssh
         $this->runProcess($input, $output, $command);
     }
@@ -84,17 +86,25 @@ class ProjectSetupCommand extends Command
     protected function runProcess(InputInterface $input, OutputInterface $output, $command)
     {
         $process = new Process($command);
-        $process->run();
+        $process->setTimeout(null);
+        $output->writeln('<info>  $> executing <fg=white>pre deploy</> tasks</info>');
 
-        $output->writeln('<info>  $> preparing remote folders</info>');
+        // only verbose allows to show the post deploy tasks...
+        $verbose = ($output->getVerbosity() >= OutputInterface::VERBOSITY_VERBOSE) ? true : false;
+
+        $process->run(function ($type, $buffer) use ($verbose) {
+            if ($verbose) {
+                echo $buffer;
+            }
+        });
 
         if (!$process->isSuccessful()) {
             // quit on error
-            $output->writeln('<info>  $> remote folders: </info><error>NOT OK</error>');
+            $output->writeln('<info>  $> executing <fg=white>pre deploy</> deploy tasks: </info><error>NOT OK</error>');
             exit(1); // bash code error
             // throw new \Exception('cannot create remote directories');
         }
 
-        $output->writeln('<info>  $> remote folders: </info>OK');
+        $output->writeln('<info>  $> <fg=white>pre deploy</> deploy tasks: </info>OK');
     }
 }
