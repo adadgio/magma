@@ -55,7 +55,7 @@ class DeployCommand extends Command
         if (!in_array($env, $environments)) {
             throw new \Exception(sprintf('Environment "%s" does not exist', $env));
         }
-        
+
         // release setup
         $this->runSubCommand('release:setup', $input, $output, $env, $release);
         $this->runSubCommand('release:upload', $input, $output, $env, $release);
@@ -65,7 +65,7 @@ class DeployCommand extends Command
         $this->runSubCommand('release:publish', $input, $output, $env, $release);
         $this->runSubCommand('release:postdeploy', $input, $output, $env, $release);
     }
-
+    
     private function runSubCommand($name, InputInterface $input, OutputInterface $output, $env, $release)
     {
 
